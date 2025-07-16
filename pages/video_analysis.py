@@ -3,7 +3,6 @@ import requests, pathlib, hashlib, urllib.parse as ul
 import base64, os, json
 from google import genai
 from google.genai import types
-from dotenv import load_dotenv
 from datetime import datetime
 import pandas as pd
 import cv2
