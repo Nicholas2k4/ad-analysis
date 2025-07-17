@@ -119,6 +119,9 @@ else:  # ⬅️  kasus baru: minta input manual
         st.stop()  # tunggu sampai salah satu diisi
 
     if file_up is not None:  # ➜ pakai file yang di-upload
+        upload_dir = pathlib.Path("ads")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
         tmp = pathlib.Path("ads") / f"upload_{datetime.now().timestamp():.0f}.mp4"
         tmp.write_bytes(file_up.read())
         video_path = tmp
