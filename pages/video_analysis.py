@@ -11,6 +11,8 @@ import PIL.Image as Image
 from PIL import ImageDraw
 from pathlib import Path
 from collections import defaultdict
+import zipfile, io
+
 
 
 ###############################################################################
@@ -68,6 +70,38 @@ def extract_frames(path: pathlib.Path, seconds: list[int]) -> dict[int, np.ndarr
             out[s] = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     cap.release()
     return out
+
+def build_timeline_zip(seg_df: pd.DataFrame, video_path: pathlib.Path) -> io.BytesIO:
+    """
+    Return BytesIO berisi *.zip*:
+    Visual Timeline/
+      └─ 00m00s‑00m09s Label A/
+         ├─ 000.png  (scene‑change #1)
+         ├─ 004.png  (scene‑change #2)
+         └─ …
+      └─ 00m10s‑00m19s Label B/
+         └─ …
+    """
+    zbuffer = io.BytesIO()
+    with zipfile.ZipFile(zbuffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        root = "Visual Timeline/"
+        for _, row in seg_df.iterrows():
+            s, e  = int(row["start_second"]), int(row["end_second"])
+            lbl   = row["label"]
+            folder = f"{root}{s:02d}s-{e:02d}s {lbl}/"
+            scenes = row["scene_changes"] if row["scene_changes"] else [s]
+
+            # ambil gambar sekali saja
+            frames = extract_frames(video_path, scenes)
+            for sc in scenes:
+                if sc not in frames: continue
+                buf = io.BytesIO()
+                Image.fromarray(frames[sc]).save(buf, format="PNG")
+                buf.seek(0)
+                zf.writestr(f"{folder}{sc:03d}.png", buf.read())
+    zbuffer.seek(0)
+    return zbuffer
+
 
 
 ###############################################################################
@@ -279,8 +313,20 @@ with action_container:
             for i, s in enumerate(scene_list):
                 if s in frames_this_seg:
                     cols[i % TIMELINE_COLS].image(frames_this_seg[s], width=TIMELINE_IMG_W, caption=None)
+            
+         # ### ░░ ZIP TIMELINE ░░ #############################################
+        if st.button("⬇️  Download Visual Timeline Images (ZIP)", use_container_width=True):
+            with st.spinner("Preparing zip …"):
+                zip_io = build_timeline_zip(seg_df, video_path)
+            st.download_button(
+                "Save ZIP",
+                data=zip_io,
+                file_name=f"timeline_{video_path.stem}.zip",
+                mime="application/zip",
+                use_container_width=True,
+            )
 
-            st.divider()
+        st.divider()
 
         # transcript
         if mobile_layout:
