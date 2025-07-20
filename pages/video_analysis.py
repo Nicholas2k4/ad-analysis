@@ -278,6 +278,43 @@ def call_gemini(video_path: pathlib.Path, prompt: str = PROMPT):
     except json.JSONDecodeError:
         st.warning("Gemini tidak mengembalikan JSON valid — menampilkan string mentah.")
         return raw_text
+    
+def adapt_transcript(biz_name: str, industry: str, goal: str, original: str) -> str:
+    """
+    Kembalikan string transcript baru hasil adaptasi Gemini.
+    """
+    if not GEMINI_API_KEY:
+        return "❌ GEMINI_API_KEY not set."
+
+    prompt_tpl = f"""
+SYSTEM:
+Anda adalah copywriter berpengalaman dalam iklan video berdurasi pendek.
+
+USER TASK:
+1. Adaptasikan transcript berikut agar cocok untuk bisnis **{biz_name}** ({industry}).
+2. Tujuan utama: **{goal}**.
+3. Pertahankan struktur baris & urutan kalimat sedekat mungkin dengan transcript asli
+   agar durasi tiap adegan tetap mirip; boleh menambah/mengurangi <15 % kata jika perlu.
+4. Gunakan bahasa Indonesia persuasif, selipkan CTA relevan jika cocok.
+5. Jangan sebut brand lain ataupun platform Meta.
+
+OUTPUT:
+Berikan HANYA teks transcript baru (tanpa markdown, tanpa metadata).
+---
+TRANSCRIPT ASLI ⬇️
+{original}
+"""
+
+    client = genai.Client()
+    try:
+        resp = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[types.Part(text=prompt_tpl)],
+            config={"response_mime_type": "text/plain"},
+        )
+        return resp.text.strip()
+    except Exception as e:
+        return f"❌ Gemini error: {e}"
 
 
 ###############################################################################
@@ -292,8 +329,6 @@ with action_container:
     if st.session_state.seg_result and isinstance(st.session_state.seg_result, dict):
         seg_df = pd.DataFrame(st.session_state.seg_result["segmentations"])
         seg_df["duration (s)"] = seg_df["end_second"] - seg_df["start_second"] + 1
-        transcript = st.session_state.seg_result.get("transcript", "")
-
         st.markdown("### 🖼️  Visual Timeline")
 
         # timeline grid responsive
@@ -328,13 +363,38 @@ with action_container:
 
         st.divider()
 
-        # transcript
-        if mobile_layout:
-            with st.expander("📝 Transcript"):
-                st.write(transcript)
+        
+
+###############################################################################
+# Transcript & Adaptation                                                     #
+###############################################################################
+if st.session_state.seg_result and isinstance(st.session_state.seg_result, dict):
+    transcript = st.session_state.seg_result.get("transcript", "")
+    
+    # Transcript
+    st.markdown("## 📝 Transcript")
+    st.divider()
+    st.write(transcript)
+    
+    # Adaptation
+    st.markdown("### 🏗️ Adaptasi ke Bisnis Anda")
+    biz_col1, biz_col2, biz_col3 = st.columns(3)
+    with biz_col1:
+        biz_name = st.text_input("Nama Bisnis", key="biz_name")
+    with biz_col2:
+        industry = st.text_input("Bidang Usaha", key="industry")
+    with biz_col3:
+        goal     = st.text_input("Tujuan Iklan", placeholder="Contoh: Meningkatkan booking potong rambut", key="goal")
+    
+    if st.button("🔄 Buat Transcript Baru", disabled=not transcript):
+        if not (biz_name and industry and goal):
+            st.warning("Lengkapi semua kolom terlebih dulu.")
         else:
-            st.markdown("### 📝 Transcript")
-            st.write(transcript)
+            with st.spinner("Gemini mengadaptasi transcript …"):
+                new_script = adapt_transcript(biz_name, industry, goal, transcript)
+            st.markdown("### ✨ Transcript Adaptasi")
+            st.write(new_script)
+
 
 
 ###############################################################################
