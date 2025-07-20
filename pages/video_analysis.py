@@ -378,15 +378,25 @@ if st.session_state.seg_result and isinstance(st.session_state.seg_result, dict)
     
     # Adaptation
     st.markdown("### 🏗️ Adaptasi ke Bisnis Anda")
-    biz_col1, biz_col2, biz_col3 = st.columns(3)
-    with biz_col1:
-        biz_name = st.text_input("Nama Bisnis", key="biz_name")
-    with biz_col2:
-        industry = st.text_input("Bidang Usaha", key="industry")
-    with biz_col3:
-        goal     = st.text_input("Tujuan Iklan", placeholder="Contoh: Meningkatkan booking potong rambut", key="goal")
-    
-    if st.button("🔄 Buat Transcript Baru", disabled=not transcript):
+    # ───── Form adaptasi (tidak men‑rerun ketika mengetik) ─────
+    with st.form("adapt_form", clear_on_submit=False):
+        biz_col1, biz_col2, biz_col3 = st.columns(3)
+
+        with biz_col1:
+            biz_name = st.text_input("Nama Bisnis", key="biz_name")
+        with biz_col2:
+            industry = st.text_input("Bidang Usaha", key="industry")
+        with biz_col3:
+            goal = st.text_input(
+                "Tujuan Iklan",
+                placeholder="Contoh: Meningkatkan booking potong rambut",
+                key="goal",
+            )
+
+        submitted = st.form_submit_button("🔄 Buat Transcript Baru")
+
+    # hanya dipanggil saat tombol di‑submit
+    if submitted:
         if not (biz_name and industry and goal):
             st.warning("Lengkapi semua kolom terlebih dulu.")
         else:
